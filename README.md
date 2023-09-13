@@ -15,7 +15,7 @@ In this project, we use:
 To use Github GraphQL, you need to be authenticated with Github.
 Go to Github > Settings > Developer Settings ? Personal access tokens
 Click generate new token, set time expiration to your liking (recommend 7 days for testing), and grant the access to repository.
-Copy your new generated token and username to the .env
+Copy your new generated token and add it to the .env
 ### How to use
 
 Runs the app in the development mode.\

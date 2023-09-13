@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import { Input, Table } from "antd";
+import { useMemo, useState, useEffect } from "react";
+import { Input, Pagination, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { PiForkKnifeFill, PiStarDuotone } from "react-icons/pi";
 import { Repository } from "../types/Repository";
 import { useReposQuery } from "../services/RepoServices";
+import { useDebounce } from "../hooks/useDebounce";
 
 const SEARCH_KEYS = ["name", "description", "url", "stargazerCount", "forkCount", "description"];
 
@@ -61,15 +62,25 @@ const columns: ColumnsType<Repository> = [
 ];
 
 export const RepoList = () => {
-  const { loading, error, data } = useReposQuery();
-
+  const [currentCursor, setCurrentCursor] = useState(null);
+  const [totalCount, setTotalCount] = useState(0);
   const [searchValue, setSearchValue] = useState("");
+  const { loading, error, data, fetchMore } = useReposQuery(currentCursor);
+  const debouncedSearch = useDebounce(searchValue, 500);
+
 
   const originalRepositories = useMemo(() => {
     if (loading || error) {
       return [];
     }
-    return data?.user?.repositories?.nodes || [];
+
+    if (data) {
+      if (data.repositories) {
+        setTotalCount(data.repositories.totalCount);
+        if (data.repositories.pageInfo?.hasNextPage) setCurrentCursor(data.repositories.pageInfo.endCursor);
+      }
+    }
+    return data?.repositories?.nodes || [];
   }, [loading, error, data]);
 
   const filteredRepositories = useMemo(() => {
@@ -91,7 +102,9 @@ export const RepoList = () => {
     setSearchValue(e.currentTarget.value);
   };
 
-  const debounceOnChange = (e: React.FormEvent<HTMLInputElement>) => debounce(onChangeSearch(e), 500);
+  useEffect(() => {
+    fetchMore({variables: {after: currentCursor}})
+  }, [currentCursor, debouncedSearch, fetchMore])
 
   return (
     <div>
@@ -102,20 +115,11 @@ export const RepoList = () => {
         <p>Error has occurred ...</p>
       ):(
         <div>
-        <Input onChange={debounceOnChange} className="search-field" size="large" placeholder="Search repository" />
+        <Input onChange={onChangeSearch} className="search-field" size="large" placeholder="Search repository" />
         <Table columns={columns} dataSource={filteredRepositories} loading={loading} />
+        <Pagination defaultCurrent={1} total={totalCount} />
       </div>
       )}
     </div>
   );;
 };
-
-function debounce(callback: void, delay: number) {
-  const callbackFunc = () => callback;
-  const timer = setTimeout(() => {
-    callbackFunc();
-  }, delay);
-  return () => {
-    clearTimeout(timer);
-  }
-}
