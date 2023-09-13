@@ -1,5 +1,4 @@
 import { gql, useQuery } from "@apollo/client";
-import { Repository } from "../types/Repository";
 
 const LIMIT_RECORDS = 50;
 
@@ -9,12 +8,11 @@ const GET_REPOSITORIES = gql(/* GraphQL */ `
       repositories(first: $limit) {
         nodes {
           key: id
+          name
+          url
           description
           forkCount
           stargazerCount
-          projectsUrl
-          url
-          name
         }
       }
     }
@@ -22,7 +20,7 @@ const GET_REPOSITORIES = gql(/* GraphQL */ `
 `);
 
 export function useReposQuery() {
-  return useQuery<Repository[]>(GET_REPOSITORIES, {
+  return useQuery(GET_REPOSITORIES, {
     variables: {
       limit: LIMIT_RECORDS,
       loginUser: process.env.REACT_APP_LOGIN_USER,

@@ -1,8 +1,11 @@
-import { Table } from "antd";
+import { BaseSyntheticEvent, useEffect, useMemo, useState } from "react";
+import { Input, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { PiForkKnifeFill, PiStarDuotone } from "react-icons/pi";
 import { Repository } from "../types/Repository";
 import { useReposQuery } from "../services/RepoServices";
+
+const SEARCH_KEYS = ["name", "description", "url", "stargazerCount", "forkCount", "description"];
 
 const columns: ColumnsType<Repository> = [
   {
@@ -13,17 +16,6 @@ const columns: ColumnsType<Repository> = [
     render: (_, { name, url }) => (
       <a href={url} target="blank">
         {name}
-      </a>
-    ),
-  },
-  {
-    title: "Projects Resource Path",
-    dataIndex: "projectsUrl",
-    key: "projectsUrl",
-    align: "center",
-    render: (_, { projectsUrl }) => (
-      <a href={projectsUrl} target="blank">
-        {projectsUrl}
       </a>
     ),
   },
@@ -70,15 +62,48 @@ const columns: ColumnsType<Repository> = [
 
 export const RepoList = () => {
   const { loading, error, data } = useReposQuery();
-  console.log('data', data)
+
+  const [searchValue, setSearchValue] = useState("");
+
+  const originalRepositories = useMemo(() => {
+    if (loading || error) {
+      return [];
+    }
+    return data?.user?.repositories?.nodes || [];
+  }, [loading, error, data]);
+
+  const filteredRepositories = useMemo(() => {
+    if (!originalRepositories.length) return [];
+
+    if (!searchValue || searchValue === "" || searchValue.trim() === "") {
+      return originalRepositories;
+    }
+    const trimLowerCaseSearchValue = searchValue.toLowerCase().trim();
+    const filteredList = originalRepositories.filter((record: Repository) =>
+      SEARCH_KEYS.some((recordKey) =>
+        record[recordKey as keyof Repository]?.toString().toLowerCase().includes(trimLowerCaseSearchValue)
+      )
+    );
+    return filteredList;
+  }, [searchValue, originalRepositories]);
+
+  const onChangeSearch = ({ target: { value } }: BaseSyntheticEvent) => {
+    setSearchValue(value);
+  };
+
   return (
     <div>
-    <h3>Available Repository</h3>
-      { loading ? (
-      <p>Loading ...</p>
-    ) : error ? (
-      <p>Error has occurred ...</p>
-    ):(<Table columns={columns} dataSource={data} />)}
+      <h3>Available Repository</h3>
+        { loading ? (
+        <p>Loading ...</p>
+      ) : error ? (
+        <p>Error has occurred ...</p>
+      ):(
+        <div>
+        <Input onChange={onChangeSearch} className="search-field" size="large" placeholder="Search repository" />
+        <Table columns={columns} dataSource={filteredRepositories} loading={loading} />
+      </div>
+      )}
     </div>
   );;
 };
