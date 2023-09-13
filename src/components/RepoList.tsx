@@ -69,14 +69,16 @@ const columns: ColumnsType<Repository> = [
 ];
 
 export const RepoList = () => {
-  const { loading, data } = useReposQuery();
+  const { loading, error, data } = useReposQuery();
   console.log('data', data)
   return (
     <div>
     <h3>Available Repository</h3>
       { loading ? (
       <p>Loading ...</p>
-    ) : (<Table columns={columns} dataSource={data} />)}
+    ) : error ? (
+      <p>Error has occurred ...</p>
+    ):(<Table columns={columns} dataSource={data} />)}
     </div>
   );;
 };
