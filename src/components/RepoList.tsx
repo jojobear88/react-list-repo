@@ -1,4 +1,4 @@
-import { BaseSyntheticEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Input, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { PiForkKnifeFill, PiStarDuotone } from "react-icons/pi";
@@ -75,7 +75,7 @@ export const RepoList = () => {
   const filteredRepositories = useMemo(() => {
     if (!originalRepositories.length) return [];
 
-    if (!searchValue || searchValue === "" || searchValue.trim() === "") {
+    if (searchValue === "" || searchValue.trim() === "") {
       return originalRepositories;
     }
     const trimLowerCaseSearchValue = searchValue.toLowerCase().trim();
@@ -87,9 +87,11 @@ export const RepoList = () => {
     return filteredList;
   }, [searchValue, originalRepositories]);
 
-  const onChangeSearch = ({ target: { value } }: BaseSyntheticEvent) => {
-    setSearchValue(value);
+  const onChangeSearch = (e: React.FormEvent<HTMLInputElement>) => {
+    setSearchValue(e.currentTarget.value);
   };
+
+  const debounceOnChange = (e: React.FormEvent<HTMLInputElement>) => debounce(onChangeSearch(e), 500);
 
   return (
     <div>
@@ -100,10 +102,20 @@ export const RepoList = () => {
         <p>Error has occurred ...</p>
       ):(
         <div>
-        <Input onChange={onChangeSearch} className="search-field" size="large" placeholder="Search repository" />
+        <Input onChange={debounceOnChange} className="search-field" size="large" placeholder="Search repository" />
         <Table columns={columns} dataSource={filteredRepositories} loading={loading} />
       </div>
       )}
     </div>
   );;
 };
+
+function debounce(callback: void, delay: number) {
+  const callbackFunc = () => callback;
+  const timer = setTimeout(() => {
+    callbackFunc();
+  }, delay);
+  return () => {
+    clearTimeout(timer);
+  }
+}
