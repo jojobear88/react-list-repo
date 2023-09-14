@@ -1,12 +1,9 @@
-import { useMemo, useState, useEffect } from "react";
-import { Input, Pagination, Table } from "antd";
+import { useState, useEffect } from "react";
+import { Button, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { PiForkKnifeFill, PiStarDuotone } from "react-icons/pi";
 import { Repository } from "../types/Repository";
 import { useReposQuery } from "../services/RepoServices";
-import { useDebounce } from "../hooks/useDebounce";
-
-const SEARCH_KEYS = ["name", "description", "url", "stargazerCount", "forkCount", "description"];
 
 const columns: ColumnsType<Repository> = [
   {
@@ -62,64 +59,62 @@ const columns: ColumnsType<Repository> = [
 ];
 
 export const RepoList = () => {
-  const [currentCursor, setCurrentCursor] = useState(null);
-  const [totalCount, setTotalCount] = useState(0);
-  const [searchValue, setSearchValue] = useState("");
-  const { loading, error, data, fetchMore } = useReposQuery(currentCursor);
-  const debouncedSearch = useDebounce(searchValue, 500);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasNextPage, setHasNextPage] = useState(true);
+  const [dataSource, setDataSource] = useState<Repository[]>([]);
+  const { loading, error, data, fetchMore } = useReposQuery(null);
 
-
-  const originalRepositories = useMemo(() => {
+  useEffect(() => {
     if (loading || error) {
-      return [];
+      return;
     }
 
     if (data) {
-      if (data.repositories) {
-        setTotalCount(data.repositories.totalCount);
-        if (data.repositories.pageInfo?.hasNextPage) setCurrentCursor(data.repositories.pageInfo.endCursor);
-      }
+      addItems(data.user.repositories);
     }
-    return data?.repositories?.nodes || [];
   }, [loading, error, data]);
 
-  const filteredRepositories = useMemo(() => {
-    if (!originalRepositories.length) return [];
-
-    if (searchValue === "" || searchValue.trim() === "") {
-      return originalRepositories;
+  const addItems = (repositories: any) => {
+    const { nodes, pageInfo } = repositories;
+    const newItems = [...dataSource, ...nodes];
+    setDataSource(newItems);
+    if (pageInfo.hasNextPage) {
+      setNextCursor(pageInfo.endCursor);
     }
-    const trimLowerCaseSearchValue = searchValue.toLowerCase().trim();
-    const filteredList = originalRepositories.filter((record: Repository) =>
-      SEARCH_KEYS.some((recordKey) =>
-        record[recordKey as keyof Repository]?.toString().toLowerCase().includes(trimLowerCaseSearchValue)
-      )
-    );
-    return filteredList;
-  }, [searchValue, originalRepositories]);
-
-  const onChangeSearch = (e: React.FormEvent<HTMLInputElement>) => {
-    setSearchValue(e.currentTarget.value);
+    setHasNextPage(pageInfo.hasNextPage);
   };
 
-  useEffect(() => {
-    fetchMore({variables: {after: currentCursor}})
-  }, [currentCursor, debouncedSearch, fetchMore])
+  const onLoadMore = async () => {
+    const resp = await fetchMore({
+      variables: { after: nextCursor },
+    });
+    addItems(resp.data.user.repositories);
+  };
 
   return (
     <div>
       <h3>Available Repository</h3>
-        { loading ? (
+      {loading ? (
         <p>Loading ...</p>
       ) : error ? (
         <p>Error has occurred ...</p>
-      ):(
+      ) : (
         <div>
-        <Input onChange={onChangeSearch} className="search-field" size="large" placeholder="Search repository" />
-        <Table columns={columns} dataSource={filteredRepositories} loading={loading} />
-        <Pagination defaultCurrent={1} total={totalCount} />
-      </div>
+          <Table
+            columns={columns}
+            dataSource={dataSource}
+            loading={loading}
+            pagination={false}
+          />
+          {hasNextPage ? (
+            <Button block onClick={() => onLoadMore()}>
+              More
+            </Button>
+          ) : (
+            <></>
+          )}
+        </div>
       )}
     </div>
-  );;
+  );
 };
