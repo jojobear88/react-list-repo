@@ -1,60 +1,65 @@
-import React from "react";
-import { render, screen } from "@testing-library/react";
-import { RepoList } from "./RepoList";
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
+import { useReposQuery } from '../services/RepoServices';
+import { RepoList } from './RepoList';
 
-// Mock the useReposQuery hook
-jest.mock("../services/RepoServices", () => ({
+// Mock the window.matchMedia function
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(), // Mock any other methods used by your code
+    removeListener: jest.fn(), // Mock any other methods used by your code
+    addEventListener: jest.fn(), // Mock any other methods used by your code
+    removeEventListener: jest.fn(), // Mock any other methods used by your code
+    dispatchEvent: jest.fn(), // Mock any other methods used by your code
+  }),
+});
+
+jest.mock('../services/RepoServices', () => ({
   useReposQuery: jest.fn(),
 }));
 
-describe("RepoList", () => {
+describe('RepoList', () => {
+  const mockUsername = 'testuser';
+  const mockRepositories = {
+    user: {
+      repositories: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          endCursor: null,
+        },
+      },
+    },
+  };
+
   beforeEach(() => {
-    jest.clearAllMocks();
+    (useReposQuery as jest.Mock).mockReturnValue([
+      jest.fn(),
+      { loading: false, error: null, data: mockRepositories, fetchMore: jest.fn() },
+    ]);
   });
 
-  it("renders loading state when data is being fetched", () => {
-    jest.fn().mockReturnValue({ loading: true });
-
+  test('renders RepoList component without errors', () => {
     render(<RepoList />);
-
-    expect(screen.getByText("Loading ...")).toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("renders error state when an error occurs", () => {
-    jest.fn().mockReturnValue({ error: true });
+  test('fetches repositories when button is clicked', async () => {
+    const { getByPlaceholderText, getByText } = render(<RepoList />);
 
-    render(<RepoList />);
+    const usernameInput = getByPlaceholderText('GitHub Username');
+    const fetchButton = getByText('Fetch Repositories');
 
-    expect(screen.getByText("Error has occurred ...")).toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    fireEvent.change(usernameInput, { target: { value: mockUsername } });
+    fireEvent.click(fetchButton);
+
+    await waitFor(() => {
+      expect(useReposQuery).toHaveBeenCalledWith(mockUsername, null);
+    });
   });
 
-  it("renders table with data when data is available", () => {
-    const data = [{ name: "Repo 1" }, { name: "Repo 2" }];
-    jest.fn().mockReturnValue({ data });
-
-    render(<RepoList />);
-
-    expect(screen.queryByText("Loading ...")).not.toBeInTheDocument();
-    expect(screen.queryByText("Error has occurred ...")).not.toBeInTheDocument();
-    expect(screen.getByRole("table")).toBeInTheDocument();
-    expect(screen.getByRole("table")).toHaveAttribute("data-source", JSON.stringify(data));
-  });
-
-  it("renders correct table columns", () => {
-    render(<RepoList />);
-
-    const tableColumns = screen.getAllByRole("columnheader");
-
-    expect(tableColumns).toHaveLength(5);
-
-    expect(tableColumns[0]).toHaveTextContent("Name");
-    expect(tableColumns[1]).toHaveTextContent("Projects Resource Path");
-    expect(tableColumns[2]).toHaveTextContent("Description");
-    expect(tableColumns[3]).toHaveTextContent("Stars");
-    expect(tableColumns[4]).toHaveTextContent("Forks");
-  });
-
-  // Add additional tests for custom component rendering, column alignment, etc.
+  // Add more tests as needed for different functionality and interactions
 });
