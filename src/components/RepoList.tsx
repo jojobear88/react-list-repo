@@ -1,9 +1,15 @@
-import { useState, useEffect } from "react";
-import { Button, Table } from "antd";
+import { useState, useEffect, useCallback } from "react";
+import { Button, Input, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { PiForkKnifeFill, PiStarDuotone } from "react-icons/pi";
+import {
+  PiForkKnifeFill,
+  PiMagnifyingGlass,
+  PiStarDuotone,
+} from "react-icons/pi";
 import { Repository } from "../types/Repository";
 import { useReposQuery } from "../services/RepoServices";
+import { useDebounce } from "../hooks/useDebounce";
+import { Repositories } from "../types/Repositories";
 
 const columns: ColumnsType<Repository> = [
   {
@@ -59,30 +65,35 @@ const columns: ColumnsType<Repository> = [
 ];
 
 export const RepoList = () => {
-  const [nextCursor, setNextCursor] = useState(null);
-  const [hasNextPage, setHasNextPage] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [username, setUsername] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<Repository[]>([]);
-  const { loading, error, data, fetchMore } = useReposQuery(null);
+  const [fetchRepositories, { loading, error, data, fetchMore }] =
+    useReposQuery(username, null);
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  const addItems = useCallback(
+    (repositories: Repositories) => {
+      setDataSource((prevDataSource) => {
+        const { nodes } = repositories;
+        const newItems = [...prevDataSource, ...nodes];
+        return newItems;
+      });
+
+      setNextCursor(() => {
+        const { pageInfo } = repositories;
+        return pageInfo.hasNextPage ? pageInfo.endCursor : null;
+      });
+    },
+    [setDataSource, setNextCursor]
+  );
 
   useEffect(() => {
-    if (loading || error) {
-      return;
-    }
-
     if (data) {
       addItems(data.user.repositories);
     }
-  }, [loading, error, data]);
-
-  const addItems = (repositories: any) => {
-    const { nodes, pageInfo } = repositories;
-    const newItems = [...dataSource, ...nodes];
-    setDataSource(newItems);
-    if (pageInfo.hasNextPage) {
-      setNextCursor(pageInfo.endCursor);
-    }
-    setHasNextPage(pageInfo.hasNextPage);
-  };
+  }, [data, addItems]);
 
   const onLoadMore = async () => {
     const resp = await fetchMore({
@@ -90,6 +101,26 @@ export const RepoList = () => {
     });
     addItems(resp.data.user.repositories);
   };
+
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+  };
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUsername(e.target.value);
+  };
+
+  const handleFetchRepositories = () => {
+    fetchRepositories({
+      variables: {
+        username,
+      },
+    });
+  };
+
+  const filteredRepositories = dataSource.filter((repo: Repository) =>
+    repo.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+  );
 
   return (
     <div>
@@ -100,13 +131,32 @@ export const RepoList = () => {
         <p>Error has occurred ...</p>
       ) : (
         <div>
+          <Input
+            placeholder="GitHub Username"
+            value={username}
+            onChange={handleUsernameChange}
+            style={{ marginBottom: 16 }}
+          />
+          <Input
+            placeholder="Search repositories"
+            prefix={<PiMagnifyingGlass />}
+            onChange={(e) => handleSearch(e.target.value)}
+            style={{ marginBottom: 16 }}
+          />
+          <Button
+            type="primary"
+            onClick={handleFetchRepositories}
+            disabled={!username}
+          >
+            Fetch Repositories
+          </Button>
           <Table
             columns={columns}
-            dataSource={dataSource}
+            dataSource={filteredRepositories}
             loading={loading}
             pagination={false}
           />
-          {hasNextPage ? (
+          {nextCursor ? (
             <Button block onClick={() => onLoadMore()}>
               More
             </Button>
